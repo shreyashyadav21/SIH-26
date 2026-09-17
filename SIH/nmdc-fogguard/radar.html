@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Radar Command Center | MineSafe</title>
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    .tactical-dual-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .radar-panel {
+      background: #0a111a;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+    }
+    .radar-scope-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #050a12;
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid rgba(0, 242, 255, 0.2);
+    }
+    .video-feed-container {
+      position: relative;
+      width: 100%;
+      height: 420px;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 242, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .video-feed-canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .feed-hud-overlay {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      right: 10px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .feed-badge {
+      background: rgba(0,0,0,0.75);
+      border: 1px solid #00f2ff;
+      color: #00f2ff;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 4px;
+      letter-spacing: 1px;
+    }
+    .feed-weather-badge {
+      background: rgba(0,0,0,0.75);
+      border: 1px solid #ffcc00;
+      color: #ffcc00;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .feed-controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ctrl-btn {
+      background: #111827;
+      border: 1px solid rgba(0, 242, 255, 0.3);
+      color: #e2e8f0;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .ctrl-btn:hover {
+      background: rgba(0, 242, 255, 0.2);
+      border-color: #00f2ff;
+      color: #00f2ff;
+    }
+    .ctrl-btn.active {
+      background: #00f2ff;
+      color: #050a14;
+      border-color: #00f2ff;
+    }
+    .radar-bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .radar-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #111827;
+      padding: 12px 16px;
+      border-radius: 8px;
+      border-left: 5px solid #00e676;
+      margin-bottom: 8px;
+    }
+    .radar-item.critical { border-left-color: #ff3b3b; background: rgba(255,59,59,0.08); }
+    .radar-item.warning { border-left-color: #ffd740; background: rgba(255,215,64,0.08); }
+    .log-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    .log-table th, .log-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #1f2937; font-size: 0.85rem; }
+    .log-table th { color: #9ca3af; font-size: 0.75rem; letter-spacing: 1px; }
+    .alert-box { background: rgba(255, 59, 59, 0.15); border: 1px solid #ff3b3b; color: #ff3b3b; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-weight: bold; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; }
+    .alert-box.warn { background: rgba(255, 215, 64, 0.15); border-color: #ffd740; color: #ffd740; }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="logo">⛏️</div>
+      <div class="brand-text">MineSafe</div>
+    </div>
+    <ul class="navbar-nav">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="environment.html">Environment</a></li>
+      <li><a href="video-analysis.html">Video AI</a></li>
+      <li><a href="radar.html" class="active">Radar</a></li>
+      <li><a href="training.html">Model Training</a></li>
+    </ul>
+  </div>
+
+  <div class="main-content">
+    <header class="top-header" style="justify-content:space-between">
+      <div>
+        <h1 class="page-title" style="margin-bottom:2px">RADAR & AI VISION COMMAND CENTER</h1>
+        <div style="font-size:0.75rem;color:#00f2ff;letter-spacing:1px">
+          SIMULTANEOUS AI VIDEO OBJECT DETECTION & 360° TACTICAL RADAR GUIDANCE
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <a href="video-analysis.html" class="ctrl-btn active" style="display:flex;align-items:center;gap:6px;text-decoration:none;padding:7px 15px;font-size:0.82rem;background:linear-gradient(135deg, #00e676, #00b0ff);color:#050a14;font-weight:800;border-radius:20px;border:none;box-shadow:0 0 15px rgba(0,230,118,0.4)">
+          <span>📹 Switch to AI Video Tab</span> <span>➔</span>
+        </a>
+        <button onclick="VoiceAssistant.toggleListening()" class="btn-voice-nav" title="Voice Assistant - Speak 'Video' or 'Radar'" style="display:flex;align-items:center;gap:6px;background:rgba(0,242,255,0.12);border:1px solid rgba(0,242,255,0.5);color:#00f2ff;padding:6px 14px;border-radius:20px;cursor:pointer;font-family:inherit;font-size:0.8rem;font-weight:700;transition:all 0.2s">
+          <span>🎙️</span> <span>Voice Assistant Active</span>
+        </button>
+        <div style="color:var(--safe-color); font-weight:bold; letter-spacing:2px; font-size:1.05rem;">
+          ● SENSORS ONLINE
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard-main" style="padding: 20px 30px;">
+      
+      <!-- TOP SECTION: DUAL SIMULTANEOUS TACTICAL SCREENS -->
+      <div class="tactical-dual-grid">
+        
+        <!-- LEFT: 360° TACTICAL RADAR SCOPE -->
+        <div class="radar-panel" style="border-left: 4px solid #00f2ff;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="color:#00f2ff;font-size:1.1rem;letter-spacing:1px;display:flex;align-items:center;gap:6px">
+              <span>📡</span> 360° TACTICAL RADAR SCOPE
+            </h3>
+            <div style="display:flex;gap:6px">
+              <button class="ctrl-btn active" id="range100Btn" onclick="setRadarRange(100)">100m</button>
+              <button class="ctrl-btn" id="range50Btn" onclick="setRadarRange(50)">50m</button>
+              <button class="ctrl-btn" id="range150Btn" onclick="setRadarRange(150)">150m</button>
+              <button class="ctrl-btn" id="audioPingBtn" onclick="toggleRadarAudio()">🔊 Ping</button>
+            </div>
+          </div>
+
+          <div class="radar-scope-container">
+            <canvas id="radarScopeCanvas" width="450" height="420"></canvas>
+            
+            <!-- Telemetry info strip below scope -->
+            <div style="width:100%;display:flex;justify-content:space-between;font-size:0.75rem;color:#94a3b8;margin-top:6px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px">
+              <span>Center Object: <b style="color:#00f2ff">DT-104 (YOU)</b></span>
+              <span>Coordinates: <b style="color:#fff">240T Hauler [0,0]</b></span>
+              <span>Heading: <b style="color:#00ff9d">000° N</b></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: SIMULTANEOUS LIVE AI VIDEO DETECTION FEED -->
+        <div class="radar-panel" style="border-left: 4px solid #00e676;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="color:#00e676;font-size:1.1rem;letter-spacing:1px;display:flex;align-items:center;gap:6px">
+              <span>📹</span> SIMULTANEOUS AI FORWARD CAMERA
+            </h3>
+            <div id="aiSyncBadge" style="font-size:0.75rem;background:rgba(0,230,118,0.15);color:#00e676;padding:3px 8px;border-radius:4px;font-weight:bold;border:1px solid #00e676">
+              ● SYNCED WITH RADAR
+            </div>
+          </div>
+
+          <div class="video-feed-container">
+            <div class="feed-hud-overlay">
+              <div class="feed-badge" id="hudCameraTag">AI CAMERA 1 · HAUL ROAD NORTH</div>
+              <div class="feed-weather-badge" id="hudWeatherTag">FOG: DENSE (8m)</div>
+            </div>
+            <canvas id="liveCameraCanvas" class="video-feed-canvas" width="640" height="380"></canvas>
+            <video id="hiddenAnalysisVideo" playsinline muted loop style="display:none"></video>
+          </div>
+
+          <div class="feed-controls-row">
+            <div style="display:flex;gap:6px">
+              <button class="ctrl-btn" id="feedPlayPauseBtn" onclick="toggleFeedPlay()">⏸️ Pause Feed</button>
+              <button class="ctrl-btn" onclick="injectApproachingTruckHazard()">⚡ Approaching Hauler Hazard</button>
+              <button class="ctrl-btn" onclick="document.getElementById('customVideoInput').click()">📁 Load Video</button>
+              <input type="file" id="customVideoInput" accept="video/*" style="display:none" />
+            </div>
+            <div style="font-size:0.75rem;color:#94a3b8">
+              FPS: <b style="color:#00f2ff" id="fpsTag">30</b> | Dehazing: <b style="color:#00ff9d">ACTIVE</b>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- MIDDLE ROW: WEATHER PREDICTION & ACTIVE PROXIMITY ALERTS -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+        
+        <div class="radar-panel" style="border-left: 4px solid #ffd740;">
+          <h3 style="color:#ffd740;margin-bottom:10px;font-size:1.1rem;letter-spacing:1px">AI WEATHER PREDICTION & ATMOSPHERIC METRICS</h3>
+          <div id="weatherBox" style="font-size: 1.4rem; font-weight: bold; color: #fff;margin-bottom:8px">
+            Analyzing Atmosphere...
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:0.8rem;background:rgba(0,0,0,0.3);padding:10px;border-radius:6px">
+            <div>Visibility: <b style="color:#ff3b3b" id="statVis">8.2m</b></div>
+            <div>Fog Density: <b style="color:#ffd740" id="statDensity">74.5%</b></div>
+            <div>Speed Limit: <b style="color:#00e676" id="statSpeed">10 km/h</b></div>
+          </div>
+        </div>
+
+        <div class="radar-panel" style="border-left: 4px solid #ff3b3b;">
+          <h3 style="color:#ff3b3b;margin-bottom:10px;font-size:1.1rem;letter-spacing:1px">ACTIVE PROXIMITY THREAT ALERTS</h3>
+          <div id="alertBoxList">
+            <div style="color:#666;font-style:italic;">No active alerts. Path is safe.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BOTTOM ROW: LIVE TARGET LIST & DETECTION ANALYTICS & EVENT LOG -->
+      <div class="radar-bottom-grid">
+        
+        <!-- LEFT: LIVE DETECTIONS -->
+        <div class="radar-panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="color:#00e676;font-size:1.1rem;letter-spacing:1px">SURROUNDING DETECTED OBJECTS</h3>
+            <span style="font-size:0.75rem;color:#94a3b8" id="objectCountTag">0 Objects</span>
+          </div>
+          <div id="liveRadarList" style="max-height:280px;overflow-y:auto">
+            <div style="color:#666;font-style:italic;">Scanning sector...</div>
+          </div>
+        </div>
+
+        <!-- RIGHT: DETECTION ANALYTICS & LOG -->
+        <div class="radar-panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h3 style="color:#00f2ff;font-size:1.1rem;letter-spacing:1px">PROXIMITY ANALYTICS</h3>
+            <button onclick="clearHistory()" class="ctrl-btn">Clear Log</button>
+          </div>
+          <canvas id="radarChart" height="100"></canvas>
+          
+          <div style="margin-top:15px;overflow-y:auto;max-height:160px">
+            <table class="log-table">
+              <thead><tr><th>TIMESTAMP</th><th>DETECTED OBJECT</th><th>DISTANCE</th><th>THREAT LEVEL</th></tr></thead>
+              <tbody id="historyTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="js/radar-scope.js"></script>
+<script>
+  let radarScopeInstance = null;
+  let radarChart = null;
+  let feedIsPlaying = true;
+  let customVideoLoaded = false;
+  let simulatedObstacles = [];
+  let feedAnimId = null;
+
+  // Initialize Tactical Radar Scope
+  function initRadar() {
+    radarScopeInstance = new RadarScope('radarScopeCanvas', {
+      maxRange: 100,
+      audioPing: false
+    });
+  }
+
+  function setRadarRange(m) {
+    if (radarScopeInstance) radarScopeInstance.setRange(m);
+    ['50', '100', '150'].forEach(val => {
+      const b = document.getElementById(`range${val}Btn`);
+      if (b) {
+        if (parseInt(val) === m) b.classList.add('active');
+        else b.classList.remove('active');
+      }
+    });
+  }
+
+  function toggleRadarAudio() {
+    if (!radarScopeInstance) return;
+    const active = radarScopeInstance.toggleAudioPing();
+    const btn = document.getElementById('audioPingBtn');
+    if (btn) {
+      btn.textContent = active ? '🔊 Ping ON' : '🔇 Ping OFF';
+      if (active) btn.classList.add('active');
+      else btn.classList.remove('active');
+    }
+  }
+
+  // Live Simultaneous Haul Road Camera Simulator + YOLO Synthesizer
+  const cameraCanvas = document.getElementById('liveCameraCanvas');
+  const camCtx = cameraCanvas.getContext('2d');
+  const hiddenVideo = document.getElementById('hiddenAnalysisVideo');
+
+  let truckDistance = 45; // approaches from 45m to 10m
+  let truckDir = -0.3;
+  let excavatorDist = 28;
+  let personnelDist = 42;
+
+  function renderSimulatedCameraFeed() {
+    if (!feedIsPlaying) return;
+
+    const w = cameraCanvas.width;
+    const h = cameraCanvas.height;
+
+    // 1. Draw Haul Road Scene
+    const skyGrad = camCtx.createLinearGradient(0, 0, 0, h * 0.55);
+    skyGrad.addColorStop(0, '#4a5568');
+    skyGrad.addColorStop(1, '#94a3b8');
+    camCtx.fillStyle = skyGrad;
+    camCtx.fillRect(0, 0, w, h * 0.55);
+
+    // Haul road earth ground
+    const roadGrad = camCtx.createLinearGradient(0, h * 0.55, 0, h);
+    roadGrad.addColorStop(0, '#5a3d28');
+    roadGrad.addColorStop(1, '#3b2414');
+    camCtx.fillStyle = roadGrad;
+    camCtx.fillRect(0, h * 0.55, w, h * 0.45);
+
+    // Road track perspective lines
+    camCtx.strokeStyle = 'rgba(217, 119, 6, 0.4)';
+    camCtx.lineWidth = 4;
+    camCtx.beginPath();
+    camCtx.moveTo(w * 0.46, h * 0.55); camCtx.lineTo(w * 0.1, h);
+    camCtx.moveTo(w * 0.54, h * 0.55); camCtx.lineTo(w * 0.9, h);
+    camCtx.stroke();
+
+    // 2. Moving Dump Truck Simulation
+    truckDistance += truckDir;
+    if (truckDistance <= 10) truckDir = 0.35;
+    if (truckDistance >= 45) truckDir = -0.3;
+
+    // Scale truck based on distance
+    const truckScale = Math.max(0.2, (50 - truckDistance) / 40);
+    const truckW = Math.round(180 * truckScale);
+    const truckH = Math.round(140 * truckScale);
+    const truckX = Math.round((w * 0.52) - (truckW / 2));
+    const truckY = Math.round((h * 0.54) + (25 * (1 - truckDistance / 50)));
+
+    // Draw Truck Body
+    camCtx.fillStyle = '#f59e0b'; // Mining yellow
+    camCtx.fillRect(truckX, truckY, truckW, truckH * 0.7);
+    camCtx.fillStyle = '#1e293b'; // Tires & cab
+    camCtx.fillRect(truckX - 4, truckY + truckH * 0.5, truckW + 8, truckH * 0.3);
+    // Headlights
+    camCtx.fillStyle = '#fef08a';
+    camCtx.fillRect(truckX + 8, truckY + truckH * 0.45, 12, 10);
+    camCtx.fillRect(truckX + truckW - 20, truckY + truckH * 0.45, 12, 10);
+
+    // Draw Excavator on Left Berm
+    const excScale = 0.45;
+    const excX = Math.round(w * 0.12);
+    const excY = Math.round(h * 0.52);
+    camCtx.fillStyle = '#eab308';
+    camCtx.fillRect(excX, excY, 90, 60);
+    camCtx.fillStyle = '#0f172a';
+    camCtx.fillRect(excX - 5, excY + 45, 100, 20);
+
+    // Draw Miner Personnel on Right Shoulder
+    const minerX = Math.round(w * 0.82);
+    const minerY = Math.round(h * 0.58);
+    camCtx.fillStyle = '#06b6d4'; // High vis gear
+    camCtx.fillRect(minerX, minerY, 14, 30);
+    camCtx.fillStyle = '#f59e0b'; // Safety helmet
+    camCtx.fillRect(minerX - 2, minerY - 8, 18, 9);
+
+    // 3. Dense Monsoon Fog Layer (Koschmieder effect)
+    const fogAlpha = 0.55;
+    camCtx.fillStyle = `rgba(226, 232, 240, ${fogAlpha})`;
+    camCtx.fillRect(0, 0, w, h);
+
+    // 4. AI Dehaze & Object Detection Bounding Boxes (Real-time YOLO Simulation)
+    simulatedObstacles = [
+      {
+        id: 'DUMPER-07',
+        label: 'HEAVY HAUL TRUCK',
+        type: 'vehicle',
+        x: truckX,
+        y: truckY,
+        width: truckW,
+        height: truckH,
+        distance: Math.round(truckDistance),
+        color: truckDistance < 15 ? '#ff3b3b' : (truckDistance < 35 ? '#ffd740' : '#00e676')
+      },
+      {
+        id: 'EXCAVATOR-02',
+        label: 'EXCAVATOR CAT-349',
+        type: 'equipment',
+        x: excX,
+        y: excY,
+        width: 90,
+        height: 65,
+        distance: Math.round(excavatorDist),
+        color: excavatorDist < 35 ? '#ffd740' : '#00e676'
+      },
+      {
+        id: 'PERSONNEL-01',
+        label: 'MINE WORKER',
+        type: 'human',
+        x: minerX,
+        y: minerY,
+        width: 20,
+        height: 40,
+        distance: Math.round(personnelDist),
+        color: '#00e676'
+      }
+    ];
+
+    // Render bounding boxes on camera
+    simulatedObstacles.forEach(obj => {
+      camCtx.strokeStyle = obj.color;
+      camCtx.lineWidth = obj.distance < 15 ? 3 : 2;
+      camCtx.strokeRect(obj.x, obj.y, obj.width, obj.height);
+
+      // Label background
+      camCtx.fillStyle = obj.color;
+      camCtx.fillRect(obj.x, obj.y - 18, obj.width, 18);
+
+      camCtx.fillStyle = '#050a14';
+      camCtx.font = 'bold 11px sans-serif';
+      camCtx.fillText(`${obj.label} | ${obj.distance}m`, obj.x + 4, obj.y - 5);
+    });
+
+    // Prioritize obstacles detected live by the AI Video Tab if running simultaneously
+    try {
+      const stored = localStorage.getItem('radarObjects');
+      const storedTime = parseInt(localStorage.getItem('radarTimestamp') || '0', 10);
+      const isFresh = (Date.now() - storedTime) < 3500;
+
+      if (stored && isFresh) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          simulatedObstacles = parsed;
+          const syncTag = document.getElementById('aiSyncBadge');
+          if (syncTag) {
+            syncTag.innerHTML = '● LIVE SYNC FROM AI VIDEO TAB';
+            syncTag.style.background = 'rgba(0,242,255,0.2)';
+            syncTag.style.color = '#00f2ff';
+            syncTag.style.borderColor = '#00f2ff';
+          }
+        }
+      } else {
+        const syncTag = document.getElementById('aiSyncBadge');
+        if (syncTag) {
+          syncTag.innerHTML = '● SIMULTANEOUS RADAR ONLINE';
+          syncTag.style.background = 'rgba(0,230,118,0.15)';
+          syncTag.style.color = '#00e676';
+          syncTag.style.borderColor = '#00e676';
+        }
+      }
+    } catch(e) {}
+
+    // Sync to Tactical Radar Scope & LocalStorage
+    if (radarScopeInstance) {
+      radarScopeInstance.setObstacles(simulatedObstacles);
+    }
+
+    feedAnimId = requestAnimationFrame(renderSimulatedCameraFeed);
+  }
+
+  function toggleFeedPlay() {
+    feedIsPlaying = !feedIsPlaying;
+    const btn = document.getElementById('feedPlayPauseBtn');
+    if (btn) {
+      btn.textContent = feedIsPlaying ? '⏸️ Pause Feed' : '▶️ Resume Feed';
+    }
+    if (feedIsPlaying) renderSimulatedCameraFeed();
+  }
+
+  function injectApproachingTruckHazard() {
+    truckDistance = 14;
+    truckDir = -0.4;
+    if (window.VoiceAlerts) {
+      VoiceAlerts.alert('CRITICAL', 'WARNING: Oncoming haul truck proximity critical at 14 meters. Reduce speed.');
+    }
+  }
+
+  // Handle Custom Video Upload
+  const videoInput = document.getElementById('customVideoInput');
+  videoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      hiddenVideo.src = URL.createObjectURL(file);
+      hiddenVideo.play();
+      customVideoLoaded = true;
+      document.getElementById('hudCameraTag').textContent = `CUSTOM VIDEO: ${file.name.slice(0, 20)}`;
+    }
+  });
+
+  // Chart and Log Tables
+  function getHistory() {
+    return JSON.parse(localStorage.getItem('radarHistory') || '[]');
+  }
+
+  function initChart() {
+    const historyData = getHistory();
+    const ctx = document.getElementById('radarChart').getContext('2d');
+    radarChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: historyData.map(d => d.time),
+        datasets: [{
+          label: 'Closest Object Distance (m)',
+          data: historyData.map(d => d.distance),
+          borderColor: '#00d4ff',
+          backgroundColor: 'rgba(0, 212, 255, 0.1)',
+          fill: true,
+          tension: 0.35
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: false,
+        scales: {
+          y: { beginAtZero: true, max: 60, grid: { color: '#1f2937' } },
+          x: { display: false }
+        },
+        plugins: { legend: { display: false } }
+      }
+    });
+  }
+
+  function updateChart() {
+    if (!radarChart) return;
+    const historyData = getHistory();
+    const recent = historyData.slice(-20);
+    radarChart.data.labels = recent.map(d => d.time);
+    radarChart.data.datasets[0].data = recent.map(d => d.distance);
+    radarChart.update();
+  }
+
+  function renderHistoryTable() {
+    const historyData = getHistory();
+    const tbody = document.getElementById('historyTableBody');
+    tbody.innerHTML = [...historyData].reverse().slice(0, 10).map(log => {
+      let color = log.distance < 15 ? '#ff3b3b' : (log.distance < 35 ? '#ffd740' : '#00e676');
+      let status = log.distance < 15 ? 'CRITICAL' : (log.distance < 35 ? 'WARNING' : 'SAFE');
+      return `<tr>
+        <td style="color:#9ca3af">${log.time}</td>
+        <td style="font-weight:bold; color:#fff">${log.label}</td>
+        <td style="font-weight:bold; color:${color}">${log.distance}m</td>
+        <td><span style="background:${color}20; color:${color}; padding:2px 6px; border-radius:4px; font-size:0.75rem;">${status}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function clearHistory() {
+    localStorage.setItem('radarHistory', '[]');
+    renderHistoryTable();
+    updateChart();
+  }
+
+  // Periodic Telemetry Sync
+  setInterval(() => {
+    // 1. Weather Update
+    const weatherBox = document.getElementById('weatherBox');
+    const hudWeather = document.getElementById('hudWeatherTag');
+    const closest = simulatedObstacles.length ? Math.min(...simulatedObstacles.map(o => o.distance)) : 10;
+    
+    let cond = closest < 15 ? 'CRITICAL' : (closest < 35 ? 'DENSE' : 'MODERATE');
+    let color = cond === 'CRITICAL' ? '#ff3b3b' : (cond === 'DENSE' ? '#ff7b4d' : '#ffd740');
+    
+    weatherBox.innerHTML = `<span style="color:${color}">${cond} MONSOON FOG</span> <span style="font-size:0.9rem;color:#94a3b8">(Visibility: ${closest < 15 ? '6.5m' : '14m'})</span>`;
+    if (hudWeather) hudWeather.textContent = `FOG: ${cond} (${closest < 15 ? '6.5m' : '14m'})`;
+    if (hudWeather) hudWeather.style.color = color;
+
+    document.getElementById('statVis').textContent = closest < 15 ? '6.5m' : '14.0m';
+    document.getElementById('statVis').style.color = color;
+
+    // 2. Alert Box Updates
+    const alertList = document.getElementById('alertBoxList');
+    const liveList = document.getElementById('liveRadarList');
+    const countTag = document.getElementById('objectCountTag');
+
+    if (countTag) countTag.textContent = `${simulatedObstacles.length} Targets Tracked`;
+
+    let alertHTML = '';
+    let liveHTML = '';
+
+    simulatedObstacles.forEach(obj => {
+      let bClass = obj.distance < 15 ? 'critical' : (obj.distance < 35 ? 'warning' : 'safe');
+      if (obj.distance < 15) {
+        alertHTML += `<div class="alert-box">🚨 COLLISION IMMINENT: ${obj.label} at ${obj.distance}m. HALT DUMPER.</div>`;
+      } else if (obj.distance < 35) {
+        alertHTML += `<div class="alert-box warn">⚠️ PROXIMITY WARNING: ${obj.label} at ${obj.distance}m. Reduce speed.</div>`;
+      }
+
+      liveHTML += `
+        <div class="radar-item ${bClass}">
+          <div>
+            <div style="font-weight:bold;color:${obj.color}">${obj.label}</div>
+            <div style="font-size:0.75rem;color:#94a3b8">Bearing: Relative Ahead · ID: ${obj.id}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:1.3rem;font-weight:bold;color:#fff">${obj.distance}m</div>
+          </div>
+        </div>
+      `;
+    });
+
+    alertList.innerHTML = alertHTML || '<div style="color:#00e676;font-size:0.85rem">✓ No proximity violations detected. Safe distance maintained.</div>';
+    liveList.innerHTML = liveHTML;
+
+    // 3. Record history log
+    if (simulatedObstacles.length) {
+      let historyData = getHistory();
+      const minObj = simulatedObstacles.reduce((prev, curr) => (prev.distance < curr.distance ? prev : curr));
+      if (!historyData.length || historyData[historyData.length - 1].distance !== minObj.distance) {
+        historyData.push({
+          time: new Date().toLocaleTimeString(),
+          label: minObj.label,
+          distance: minObj.distance
+        });
+        if (historyData.length > 50) historyData.shift();
+        localStorage.setItem('radarHistory', JSON.stringify(historyData));
+        renderHistoryTable();
+        updateChart();
+      }
+    }
+
+  }, 1000);
+
+  // Initialize on load
+  window.addEventListener('DOMContentLoaded', () => {
+    initRadar();
+    initChart();
+    renderHistoryTable();
+    renderSimulatedCameraFeed();
+  });
+</script>
+<script src="js/voice-assistant.js"></script>
+</body>
+</html>

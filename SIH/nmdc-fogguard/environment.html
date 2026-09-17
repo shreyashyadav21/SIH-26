@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Environment | MineSafe</title>
+  <meta name="description" content="Real-time fog monitoring environment for NMDC Bailadila mines. Live fog density, fleet tracking, and voice alerts." />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/dashboard.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    .fog-tooltip .leaflet-tooltip-content { background: rgba(5,10,20,0.9); }
+    .fog-tooltip { background: transparent; border: none; box-shadow: none; }
+    .fleet-popup .leaflet-popup-content-wrapper {
+      background: rgba(10,22,40,0.97);
+      border: 1px solid rgba(0,212,255,0.2);
+      border-radius: 12px;
+      color: #e8f4fd;
+    }
+    .fleet-popup .leaflet-popup-tip { background: rgba(10,22,40,0.97); }
+    .fog-control-btns { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .fog-ctrl-btn {
+      padding:0.4rem 0.9rem; font-size:0.75rem; font-family:var(--font-display);
+      border:1px solid var(--clr-border); background:transparent;
+      color:var(--clr-text-muted); border-radius:var(--radius-sm);
+      cursor:pointer; transition:all var(--t-fast); letter-spacing:1px;
+    }
+    .fog-ctrl-btn:hover { border-color:var(--clr-border-hover); color:var(--clr-text-primary); }
+    .fog-ctrl-btn[data-fog-level="CLEAR"].active { border-color:#00e676; color:#00e676; background:rgba(0,230,118,0.1); }
+    .fog-ctrl-btn[data-fog-level="MODERATE"].active { border-color:#ffd740; color:#ffd740; background:rgba(255,215,64,0.1); }
+    .fog-ctrl-btn[data-fog-level="DENSE"].active { border-color:#ff6b1a; color:#ff6b1a; background:rgba(255,107,26,0.1); }
+    .fog-ctrl-btn[data-fog-level="CRITICAL"].active { border-color:#ff3b3b; color:#ff3b3b; background:rgba(255,59,59,0.1); }
+    .gps-tools { display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap; }
+    .gps-status { font-size:0.7rem; color:var(--clr-text-muted); }
+    .gps-status[data-gps-state="active"] { color:var(--clr-accent-green); }
+    .gps-status[data-gps-state="error"] { color:var(--clr-accent-red); }
+    .operator-profile { padding:0.9rem; background:var(--clr-bg-card); border:1px solid var(--clr-border); border-radius:var(--radius-md); }
+    .profile-heading { display:flex; align-items:center; gap:0.65rem; margin-bottom:0.75rem; }
+    .profile-avatar { width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:var(--clr-accent-orange); color:#fff; font-weight:700; }
+    .profile-name { font-weight:700; color:var(--clr-text-primary); }
+    .profile-role { font-size:0.7rem; color:var(--clr-text-muted); }
+    .profile-form { display:grid; gap:0.45rem; }
+    .profile-form label { font-size:0.68rem; color:var(--clr-text-muted); }
+    .profile-form input, .profile-form select { width:100%; min-height:32px; padding:0.35rem 0.5rem; border:1px solid var(--clr-border); border-radius:var(--radius-sm); background:var(--clr-bg-primary); color:var(--clr-text-primary); font:inherit; }
+    .profile-form button { margin-top:0.25rem; padding:0.45rem 0.65rem; font-size:0.72rem; }
+  </style>
+</head>
+<body>
+<div class="scanline-overlay"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <div class="navbar-logo">⛏️</div>
+    <span class="navbar-title">MINES<span>FE</span></span>
+  </div>
+  <ul class="navbar-nav">
+    <li><a href="index.html" data-i18n="nav_home">Home</a></li>
+    <li><a href="environment.html" class="active" data-i18n="nav_dashboard">Environment</a></li>
+    <li><a href="video-analysis.html" data-i18n="nav_video">Video AI</a></li>
+    <li><a href="radar.html" data-i18n="nav_fleet">Radar</a></li>
+    <li><a href="training.html" data-i18n="nav_training">Model Training</a></li>
+  </ul>
+  <div class="navbar-status">
+    <button onclick="VoiceAssistant.toggleListening()" class="btn-voice-nav" title="Voice Assistant - Say 'Radar'" style="display:flex;align-items:center;gap:6px;background:rgba(0,242,255,0.12);border:1px solid rgba(0,242,255,0.4);color:#00f2ff;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:inherit;font-size:0.75rem;font-weight:700;margin-right:12px;transition:all 0.2s">
+      <span>🎙️</span> <span>Voice: Say "Radar"</span>
+    </button>
+    <div class="live-indicator"><div class="live-dot"></div> LIVE</div>
+    <span id="currentTime" aria-live="polite" style="margin-left:1rem;font-family:var(--font-display);font-size:0.75rem;color:var(--clr-accent-cyan)"></span>
+  </div>
+</nav>
+
+<div class="dashboard-wrapper">
+  <div class="dashboard-grid">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+      <section class="operator-profile" aria-labelledby="profileTitle">
+        <div class="profile-heading">
+          <div class="profile-avatar" id="profileAvatar">OP</div>
+          <div><div class="profile-name" id="profileName">Mine Operator</div><div class="profile-role" id="profileRole">Safety control room</div></div>
+        </div>
+        <details>
+          <summary id="profileTitle">Operator profile</summary>
+          <form class="profile-form" id="profileForm">
+            <label for="profileNameInput">Name</label>
+            <input id="profileNameInput" name="name" maxlength="40" placeholder="Your name" />
+            <label for="profileRoleInput">Role</label>
+            <input id="profileRoleInput" name="role" maxlength="40" placeholder="Safety control room" />
+            <label for="profileSectorInput">Sector</label>
+            <input id="profileSectorInput" name="sector" maxlength="40" placeholder="Bailadila Sector" />
+            <label for="profileShiftInput">Shift</label>
+            <select id="profileShiftInput" name="shift"><option>Day shift</option><option>Night shift</option><option>Relief shift</option></select>
+            <button class="btn btn-primary" type="submit">Save profile</button>
+          </form>
+        </details>
+      </section>
+      <!-- Weather Widget -->
+      <div>
+        <div class="sidebar-section-title" data-i18n="weather_title">Weather · Bailadila</div>
+        <div class="weather-widget">
+          <div class="weather-main">
+            <div class="weather-icon">🌫️</div>
+            <div>
+              <div class="weather-temp">24°C</div>
+              <div class="weather-desc" data-i18n="weather_desc">Dense Fog · Monsoon</div>
+            </div>
+          </div>
+          <div class="weather-stats">
+            <div class="w-stat">
+              <div class="w-stat-label">Humidity</div>
+              <div class="w-stat-value text-cyan">94%</div>
+            </div>
+            <div class="w-stat">
+              <div class="w-stat-label">Wind</div>
+              <div class="w-stat-value text-cyan">12 km/h</div>
+            </div>
+            <div class="w-stat">
+              <div class="w-stat-label">Visibility</div>
+              <div class="w-stat-value text-red" id="kpiVisibility">8m</div>
+            </div>
+            <div class="w-stat">
+              <div class="w-stat-label">Elevation</div>
+              <div class="w-stat-value">1050m</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fog Control -->
+      <div>
+        <div class="sidebar-section-title" data-i18n="manual_fog">Manual Fog Control</div>
+        <div class="fog-control-btns">
+          <button class="fog-ctrl-btn" data-fog-level="CLEAR" data-i18n="fog_clear">✅ Clear</button>
+          <button class="fog-ctrl-btn" data-fog-level="MODERATE" data-i18n="fog_moderate">⚠️ Moderate</button>
+          <button class="fog-ctrl-btn active" data-fog-level="DENSE" data-i18n="fog_dense">🌫️ Dense</button>
+          <button class="fog-ctrl-btn" data-fog-level="CRITICAL" data-i18n="fog_critical">🚨 Critical</button>
+        </div>
+      </div>
+
+      <!-- Voice Panel -->
+      <div>
+        <div class="sidebar-section-title">Voice Alert System</div>
+        <div class="voice-panel">
+          <div class="voice-header">
+            <div class="voice-icon">🔊</div>
+            <div>
+              <div style="font-family:var(--font-display);font-size:0.8rem">VOICE ALERTS</div>
+              <div style="font-size:0.7rem;color:var(--clr-text-muted)">Web Speech API · Active</div>
+            </div>
+          </div>
+          <div class="voice-wave" style="margin-bottom:0.75rem">
+            <div class="voice-bar" style="height:4px"></div>
+            <div class="voice-bar" style="height:12px"></div>
+            <div class="voice-bar" style="height:20px"></div>
+            <div class="voice-bar" style="height:16px"></div>
+            <div class="voice-bar" style="height:8px"></div>
+            <div class="voice-bar" style="height:4px"></div>
+          </div>
+          <div class="voice-text" id="voiceAlertText">"Monitoring active. All haul road sensors online."</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-top:0.75rem">
+            <button id="testClear" class="btn btn-secondary" style="padding:0.4rem;font-size:0.7rem">✅ Test Clear</button>
+            <button id="testModerate" class="btn btn-secondary" style="padding:0.4rem;font-size:0.7rem">⚠️ Moderate</button>
+            <button id="testDense" class="btn btn-secondary" style="padding:0.4rem;font-size:0.7rem">🌫️ Dense</button>
+            <button id="testCritical" class="btn btn-danger" style="padding:0.4rem;font-size:0.7rem">🚨 Critical</button>
+          </div>
+          <div style="margin-top:0.75rem">
+            <div style="font-size:0.72rem;color:var(--clr-text-muted);margin-bottom:4px">Voice Language</div>
+            <select id="voiceLanguageSelect" style="width:100%;padding:0.45rem;border-radius:8px;border:1px solid var(--clr-border);background:#0a1220;color:var(--clr-text-primary)">
+              <option value="en">English</option>
+              <option value="hi">हिन्दी</option>
+              <option value="te">తెలుగు</option>
+              <option value="kn">ಕನ್ನಡ</option>
+              <option value="ta">தமிழ்</option>
+            </select>
+          </div>
+          <div style="margin-top:0.75rem">
+            <div style="font-size:0.72rem;color:var(--clr-text-muted);margin-bottom:4px">Voice</div>
+            <select id="voiceSelect" style="width:100%;padding:0.45rem;border-radius:8px;border:1px solid var(--clr-border);background:#0a1220;color:var(--clr-text-primary)">
+              <option value="default">Loading voices...</option>
+            </select>
+          </div>
+          <button id="voiceToggleBtn" class="btn btn-primary" style="width:100%;margin-top:0.75rem;padding:0.5rem">🔊 Voice ON</button>
+          <button onclick="VoiceAssistant.toggleListening()" class="btn" style="width:100%;margin-top:0.5rem;padding:0.55rem;background:linear-gradient(135deg,#00d4ff,#0077ff);color:#050a14;font-weight:800;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 0 15px rgba(0,242,255,0.3)">
+            <span>🎙️</span> <span>Voice Assistant (Say "Radar")</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Alert Panel -->
+      <div style="flex:1">
+        <div class="sidebar-section-title">Live Alerts</div>
+        <div class="alert-panel" id="alertPanel"></div>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main class="dashboard-main">
+      <!-- HUD Decorative Accents -->
+      <div style="position:absolute;top:0;left:0;width:20px;height:20px;border-top:2px solid var(--clr-accent-cyan);border-left:2px solid var(--clr-accent-cyan);opacity:0.3;pointer-events:none"></div>
+      <div style="position:absolute;top:0;right:0;width:20px;height:20px;border-top:2px solid var(--clr-accent-cyan);border-right:2px solid var(--clr-accent-cyan);opacity:0.3;pointer-events:none"></div>
+      <div style="position:absolute;bottom:0;left:0;width:20px;height:20px;border-bottom:2px solid var(--clr-accent-cyan);border-left:2px solid var(--clr-accent-cyan);opacity:0.3;pointer-events:none"></div>
+      <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;border-bottom:2px solid var(--clr-accent-cyan);border-right:2px solid var(--clr-accent-cyan);opacity:0.3;pointer-events:none"></div>
+
+      <!-- KPI Row -->
+      <div class="kpi-row">
+        <div class="kpi-card kpi-danger">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="fog_class_label">Fog Class</span>
+            <div class="kpi-icon danger">🌫️</div>
+          </div>
+          <div class="kpi-value text-red" id="kpiFogClass" style="font-size:1.4rem">DENSE</div>
+          <div class="kpi-sub" data-i18n="current_condition">Current Condition</div>
+          <div class="kpi-trend text-red">▲ Worsening · Monsoon Active</div>
+        </div>
+        <div class="kpi-card kpi-warning">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="fog_score">Fog Density</span>
+            <div class="kpi-icon warning">📊</div>
+          </div>
+          <div class="kpi-value text-yellow" id="kpiFogScore">72</div>
+          <div class="kpi-sub">Score / 100</div>
+          <div class="kpi-trend text-yellow">↑ +8 from last hour</div>
+        </div>
+        <div class="kpi-card kpi-info">
+          <div class="kpi-header">
+            <span class="kpi-label">AI Engine Status</span>
+            <div class="kpi-icon info">?</div>
+          </div>
+          <div class="kpi-value text-cyan">ACTIVE</div>
+          <div class="kpi-sub">Ollama + WebGL</div>
+          <div class="kpi-trend text-cyan">? Processing Live</div>
+        </div>
+        <div class="kpi-card kpi-success">
+          <div class="kpi-header">
+            <span class="kpi-label" data-i18n="road_sectors">Road Sectors</span>
+            <div class="kpi-icon success">🛣️</div>
+          </div>
+          <div class="kpi-value text-green">4</div>
+          <div class="kpi-sub">Haul Roads Monitored</div>
+          <div class="kpi-trend text-green">● All Sectors Online</div>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div class="charts-row">
+        <!-- Visibility Chart -->
+        <div class="chart-card">
+          <div class="chart-header">
+            <div class="chart-title">VISIBILITY & FOG DENSITY TIMELINE</div>
+            <div class="flex gap-1 align-center">
+              <div class="live-indicator"><div class="live-dot"></div>LIVE</div>
+            </div>
+          </div>
+          <div style="height:260px">
+            <canvas id="visibilityChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Fog Gauge -->
+        <div class="chart-card">
+          <div class="chart-header">
+              <div class="chart-title" data-i18n="fog_gauge">FOG GAUGE</div>
+          </div>
+          <div class="fog-gauge-container" style="padding-top:0.5rem">
+            <div class="fog-gauge">
+              <canvas id="fogGaugeCanvas" width="200" height="200"></canvas>
+              <div class="fog-gauge-center">
+                <div class="fog-gauge-value text-orange" id="fogGaugeValue">72</div>
+                <div class="fog-gauge-unit">FOG %</div>
+              </div>
+            </div>
+            <div class="fog-gauge-label dense" id="fogGaugeLabel">DENSE</div>
+            <div style="width:100%;padding:0 1rem">
+              <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--clr-text-muted);margin-bottom:4px">
+                <span data-i18n="vis_label">Visibility</span><span id="kpiVisibility2">8m</span>
+              </div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar progress-bar-red" id="visibilityBar" style="width:8%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
+      <!-- Bottom Row: Map + Charts -->
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:1.5rem">
+        <!-- Administrator Logs -->
+        <div class="chart-card" style="padding:0;overflow:hidden;background:#0a111a; border: 1px solid #1f2937;">
+          <div style="padding:1.25rem 1.5rem 0.75rem; border-bottom: 1px solid #1f2937;" class="chart-header">
+            <div class="chart-title" style="color:#00d4ff; font-size:1.1rem; letter-spacing: 2px;">ADMINISTRATOR SYSTEM LOGS</div>
+            <div class="gps-tools">
+              <span class="gps-status" style="color:#00e676; font-weight: bold;">? RECORDING</span>
+            </div>
+          </div>
+          <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 12px; height: 350px; overflow-y: auto;">
+             
+             <div style="display:flex; justify-content:space-between; align-items:center; background:#111827; padding:15px 20px; border-radius:8px; border-left:5px solid #00d4ff">
+                <div>
+                   <div style="font-weight:bold; font-size:1.1rem; color:#fff">Ollama Optimization Complete</div>
+                   <div style="font-size:0.85rem; color:#9ca3af; margin-top:4px">Contrast: 2.2x, Brightness: 1.1x</div>
+                </div>
+                <div style="text-align:right">
+                   <div style="font-size:0.8rem; color:#00d4ff; font-weight:bold; letter-spacing:1px;">SYSTEM</div>
+                </div>
+             </div>
+             
+             <div style="display:flex; justify-content:space-between; align-items:center; background:#111827; padding:15px 20px; border-radius:8px; border-left:5px solid #ff3b3b">
+                <div>
+                   <div style="font-weight:bold; font-size:1.1rem; color:#fff">DENSE FOG ALERT</div>
+                   <div style="font-size:0.85rem; color:#9ca3af; margin-top:4px">Atmospheric density reached 72%</div>
+                </div>
+                <div style="text-align:right">
+                   <div style="font-size:0.8rem; color:#ff3b3b; font-weight:bold; letter-spacing:1px;">ENVIRONMENT</div>
+                </div>
+             </div>
+
+             <div style="display:flex; justify-content:space-between; align-items:center; background:#111827; padding:15px 20px; border-radius:8px; border-left:5px solid #ffd740">
+                <div>
+                   <div style="font-weight:bold; font-size:1.1rem; color:#fff">Humidity Spike Detected</div>
+                   <div style="font-size:0.85rem; color:#9ca3af; margin-top:4px">Sector 4 reported 94% humidity</div>
+                </div>
+                <div style="text-align:right">
+                   <div style="font-size:0.8rem; color:#ffd740; font-weight:bold; letter-spacing:1px;">SENSOR</div>
+                </div>
+             </div>
+             
+             <div style="display:flex; justify-content:space-between; align-items:center; background:#111827; padding:15px 20px; border-radius:8px; border-left:5px solid #00e676">
+                <div>
+                   <div style="font-weight:bold; font-size:1.1rem; color:#fff">WebGL Dehazer Online</div>
+                   <div style="font-size:0.85rem; color:#9ca3af; margin-top:4px">Frame processing stable at 60 FPS</div>
+                </div>
+                <div style="text-align:right">
+                   <div style="font-size:0.8rem; color:#00e676; font-weight:bold; letter-spacing:1px;">SYSTEM</div>
+                </div>
+             </div>
+          </div>
+        </div>
+        <!-- Production + Fog Distribution -->
+        <div style="display:flex;flex-direction:column;gap:1.5rem">
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">PRODUCTION · THIS WEEK</div>
+            </div>
+            <div style="height:160px"><canvas id="productionChart"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-header">
+              <div class="chart-title">FOG DISTRIBUTION</div>
+            </div>
+            <div style="height:160px"><canvas id="fogDistChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/voice-alerts.js"></script>
+<script src="js/fog-model.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/fleet-tracker.js"></script>
+<script src="js/app.js"></script>
+<script src="js/voice-assistant.js"></script>
+<script>
+  // Sync dual visibility KPI
+  setInterval(() => {
+    const v1 = document.getElementById('kpiVisibility');
+    const v2 = document.getElementById('kpiVisibility2');
+    if (v1 && v2) v2.textContent = v1.textContent;
+    const a1 = document.getElementById('kpiActiveVehicles');
+    const a2 = document.getElementById('kpiActiveVehicles2');
+    if (a1 && a2) a2.textContent = a1.textContent;
+  }, 3000);
+
+  function selectVehicle(id) {
+    if (window.VoiceAlerts) {
+      VoiceAlerts.alert('MODERATE', `Vehicle ${id} selected. Current status displayed.`);
+    }
+  }
+
+  document.getElementById('locateOperatorBtn')?.addEventListener('click', event => {
+    const started = FleetTracker.locateOperator();
+    if (started) event.currentTarget.textContent = '📍 GPS active';
+  });
+    const profileForm = document.getElementById('profileForm');
+    const savedProfile = JSON.parse(localStorage.getItem('minesfe_profile') || '{}');
+    ['name', 'role', 'sector', 'shift'].forEach(key => {
+      const field = profileForm?.elements[key];
+      if (field && savedProfile[key]) field.value = savedProfile[key];
+    });
+    function renderProfile(profile) {
+      const name = profile.name || 'Mine Operator';
+      const role = profile.role || 'Safety control room';
+      document.getElementById('profileName').textContent = name;
+      document.getElementById('profileRole').textContent = `${role} · ${profile.sector || 'Bailadila Sector'}`;
+      document.getElementById('profileAvatar').textContent = name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+    }
+    renderProfile(savedProfile);
+    profileForm?.addEventListener('submit', event => {
+      event.preventDefault();
+      const profile = Object.fromEntries(new FormData(profileForm));
+      localStorage.setItem('minesfe_profile', JSON.stringify(profile));
+      renderProfile(profile);
+      profileForm.closest('details').open = false;
+    });
+</script>
+</body>
+</html>

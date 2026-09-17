@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MineSafe – AI Mine Safety Intelligence Platform</title>
+  <meta name="description" content="AI-powered fog detection and vehicle guidance system for NMDC Bailadila Iron Ore Mines. Enabling safe dumper operations during low-visibility monsoon conditions." />
+  <meta property="og:title" content="MineSafe – Mine Safety Intelligence" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+  <style>
+    .problem-card {
+      background: var(--clr-bg-card);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      padding: 1.75rem;
+      backdrop-filter: blur(20px);
+      transition: all var(--t-med);
+    }
+    .problem-card:hover { border-color: rgba(255,107,26,0.4); transform: translateY(-5px); }
+    .solution-step {
+      display: flex; gap: 1.5rem; align-items: flex-start;
+      padding: 1.5rem; margin-bottom: 1rem;
+      background: var(--clr-bg-glass);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-md);
+      backdrop-filter: blur(10px);
+      transition: all var(--t-med);
+    }
+    .solution-step:hover { border-color: var(--clr-border-hover); }
+    .step-number {
+      width: 48px; height: 48px; flex-shrink: 0;
+      border-radius: 50%;
+      background: var(--grad-orange);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-size: 1.1rem; font-weight: 900;
+      box-shadow: var(--shadow-orange);
+    }
+    .outcome-card {
+      text-align: center; padding: 1.5rem;
+      background: var(--clr-bg-card);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(20px);
+      transition: all var(--t-med);
+    }
+    .outcome-card:hover { border-color: var(--clr-accent-cyan); transform: translateY(-4px); }
+    .outcome-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .outcome-title { font-family: var(--font-display); font-size: 0.85rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <div class="navbar-logo">⛏️</div>
+    <span class="navbar-title">MINES<span>FE</span></span>
+  </div>
+  <ul class="navbar-nav">
+    <li><a href="index.html" class="active" data-i18n="nav_home">Home</a></li>
+    
+    <li><a href="environment.html">Environment</a></li>
+      <li><a href="video-analysis.html" data-i18n="nav_video">Video AI</a></li>
+    <li><a href="radar.html" data-i18n="nav_fleet">Radar</a></li>
+    
+  <li><a href="training.html">Model Training</a></li>
+    </ul>
+  <div class="navbar-status">
+    <button onclick="VoiceAssistant.toggleListening()" class="btn-voice-nav" title="Voice Assistant - Say 'Radar'" style="display:flex;align-items:center;gap:6px;background:rgba(0,242,255,0.12);border:1px solid rgba(0,242,255,0.4);color:#00f2ff;padding:4px 10px;border-radius:20px;cursor:pointer;font-family:inherit;font-size:0.75rem;font-weight:700;margin-right:12px;transition:all 0.2s">
+      <span>🎙️</span> <span>Voice: Say "Radar"</span>
+    </button>
+    <div class="status-dot"></div>
+    <span data-i18n="status_online">System Online</span>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero" style="padding-top:70px">
+  <div class="hero-photo" aria-hidden="true"></div>
+  <div class="hero-photo-shade" aria-hidden="true"></div>
+  <div class="particles-bg" id="particlesBg"></div>
+  <div class="fog-layer" id="fogLayer"></div>
+  <div class="circuit-bg"></div>
+
+  <div class="container" style="position:relative;z-index:2;width:100%">
+    <div class="hero-layout">
+      <div class="hero-content">
+        <!-- HUD Decorative Elements -->
+        <div style="position:absolute;top:-20px;left:-20px;width:40px;height:40px;border-top:2px solid var(--clr-accent-cyan);border-left:2px solid var(--clr-accent-cyan);opacity:0.5"></div>
+        <div style="position:absolute;bottom:-20px;right:-20px;width:40px;height:40px;border-bottom:2px solid var(--clr-accent-cyan);border-right:2px solid var(--clr-accent-cyan);opacity:0.5"></div>
+
+        <div class="hero-eyebrow" data-i18n="home_eyebrow">
+          🏭 NMDC · Bailadila Iron Ore Mines · AI Safety System
+        </div>
+        <h1 class="hero-title">
+          <span class="gradient-text-orange" data-i18n="home_title_1">MineSafe</span><br/>
+          <span data-i18n="home_title_2">Intelligence</span><br/>
+          <span style="color:var(--clr-accent-cyan)" data-i18n="home_title_3">Platform</span>
+        </h1>
+        <p class="hero-subtitle" data-i18n="home_subtitle">
+          AI-powered fog detection and vehicle guidance for NMDC's Bailadila mines.
+          Enabling safe, efficient dumper operations during severe monsoon low-visibility conditions
+          using computer vision, real-time analytics, and voice alerts.
+        </p>
+        <div class="hero-cta">
+          <a href="environment.html" class="btn btn-primary" id="heroDashBtn" data-i18n="home_btn_dashboard">
+            🖥️ Open Command Center
+          </a>
+          <a href="video-analysis.html" class="btn btn-secondary" id="heroVideoBtn" data-i18n="home_btn_video">
+            🎬 Analyze Video
+          </a>
+        </div>
+        <div class="tech-badges">
+          <span class="tech-badge">🤖 AI/ML</span>
+          <span class="tech-badge">📷 Computer Vision</span>
+          <span class="tech-badge">🚛 V2V/V2I</span>
+          <span class="tech-badge">🗣️ Voice Alerts</span>
+          <span class="tech-badge">📡 IoT Monitoring</span>
+          <span class="tech-badge">🗺️ GPS Tracking</span>
+        </div>
+      </div>
+
+      <!-- Hero Radar Visual -->
+      <div class="animate-float hero-scene" id="heroScene" tabindex="0" aria-label="Interactive Bailadila sector monitoring view" style="display:flex;align-items:center;justify-content:center">
+        <div style="position:relative;width:340px;height:340px">
+          <!-- Radar -->
+          <div class="radar-container" style="width:300px;height:300px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)">
+            <div class="radar-sweep"></div>
+            <div class="radar-rings">
+              <div class="radar-ring" style="width:60px;height:60px;top:50%;left:50%"></div>
+              <div class="radar-ring" style="width:140px;height:140px;top:50%;left:50%;margin:-70px 0 0 -70px"></div>
+              <div class="radar-ring" style="width:220px;height:220px;top:50%;left:50%;margin:-110px 0 0 -110px"></div>
+              <div class="radar-ring" style="width:298px;height:298px;top:50%;left:50%;margin:-149px 0 0 -149px"></div>
+            </div>
+            <!-- Blip dots (vehicles) -->
+            <div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#00e676;box-shadow:0 0 8px #00e676;top:35%;left:45%;animation:pulse-green 2s infinite"></div>
+            <div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#ffd740;box-shadow:0 0 8px #ffd740;top:55%;left:65%;animation:pulse-green 2.5s infinite"></div>
+            <div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 8px #ff3b3b;top:70%;left:35%;animation:pulse-red 1.5s infinite"></div>
+            <div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#00d4ff;box-shadow:0 0 8px #00d4ff;top:25%;left:60%"></div>
+            <div style="position:absolute;width:8px;height:8px;border-radius:50%;background:#00e676;box-shadow:0 0 8px #00e676;top:60%;left:20%"></div>
+            <!-- Center dot -->
+            <div style="position:absolute;width:12px;height:12px;border-radius:50%;background:#ff6b1a;box-shadow:0 0 16px #ff6b1a;top:50%;left:50%;transform:translate(-50%,-50%)"></div>
+          </div>
+          <!-- Labels -->
+          <div style="position:absolute;top:8%;left:50%;transform:translateX(-50%);font-family:var(--font-display);font-size:0.6rem;color:var(--clr-accent-cyan);letter-spacing:2px">BAILADILA SECTOR</div>
+          <div style="position:absolute;bottom:6%;left:50%;transform:translateX(-50%);font-family:var(--font-display);font-size:0.55rem;color:#4a6880;letter-spacing:1px">10 VEHICLES TRACKED</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stats Strip -->
+<div class="stats-strip">
+  <div class="stat-item reveal">
+    <span class="stat-number" id="statProduction">53</span>
+    <span class="stat-label" data-i18n="stat_current">MTPA Current Production</span>
+  </div>
+  <div class="stat-item reveal stagger-1">
+    <span class="stat-number">100</span>
+    <span class="stat-label" data-i18n="stat_target">MTPA Target by 2030</span>
+  </div>
+  <div class="stat-item reveal stagger-2">
+    <span class="stat-number">3–5m</span>
+    <span class="stat-label" data-i18n="stat_visibility">Min Visibility in Fog</span>
+  </div>
+  <div class="stat-item reveal stagger-3">
+    <span class="stat-number">5</span>
+    <span class="stat-label" data-i18n="stat_monsoon">Monsoon Months Affected</span>
+  </div>
+  <div class="stat-item reveal stagger-4">
+    <span class="stat-number">10+</span>
+    <span class="stat-label" data-i18n="stat_sensors">AI Sensors Per Vehicle</span>
+  </div>
+</div>
+
+<!-- Problem Section -->
+<section class="section" style="background:var(--clr-bg-secondary)">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-label" data-i18n="challenge_label">The Challenge</span>
+      <h2 class="section-title" data-i18n="challenge_title">Why Bailadila Mines Need MineSafe</h2>
+      <p class="section-subtitle" data-i18n="challenge_subtitle">Severe monsoon fog creates critical safety and productivity challenges for India's largest iron ore producer</p>
+    </div>
+    <div class="grid-3">
+      <div class="problem-card reveal">
+        <div style="font-size:2.2rem;margin-bottom:1rem">🌫️</div>
+        <h3 style="font-family:var(--font-display);font-size:0.95rem;margin-bottom:0.75rem;color:var(--clr-accent-red)">Zero Visibility Conditions</h3>
+        <p style="font-size:0.88rem">During June–October monsoon, visibility drops to 3–5 meters on hilltop haul roads, making HEMM operation extremely dangerous.</p>
+      </div>
+      <div class="problem-card reveal stagger-1">
+        <div style="font-size:2.2rem;margin-bottom:1rem">⚠️</div>
+        <h3 style="font-family:var(--font-display);font-size:0.95rem;margin-bottom:0.75rem;color:var(--clr-accent-yellow)">Collision & Accident Risk</h3>
+        <p style="font-size:0.88rem">Heavy dump trucks operating in zero visibility face extreme collision risks, endangering operators and causing equipment damage.</p>
+      </div>
+      <div class="problem-card reveal stagger-2">
+        <div style="font-size:2.2rem;margin-bottom:1rem">📉</div>
+        <h3 style="font-family:var(--font-display);font-size:0.95rem;margin-bottom:0.75rem;color:var(--clr-accent-orange)">Production Losses</h3>
+        <p style="font-size:0.88rem">Forced operational halts during fog lead to increased cycle times, reduced fleet productivity, and significant ore evacuation losses.</p>
+      </div>
+      <div class="problem-card reveal stagger-3">
+        <div style="font-size:2.2rem;margin-bottom:1rem">🚛</div>
+        <h3 style="font-family:var(--font-display);font-size:0.95rem;margin-bottom:0.75rem;color:var(--clr-accent-cyan)">Fleet Coordination Failure</h3>
+        <p style="font-size:0.88rem">Without V2V communication, multiple dump trucks on the same haul road cannot coordinate safely in fog conditions.</p>
+      </div>
+      <div class="problem-card reveal stagger-4">
+        <div style="font-size:2.2rem;margin-bottom:1rem">🔦</div>
+        <h3 style="font-family:var(--font-display);font-size:0.95rem;margin-bottom:0.75rem;color:var(--clr-text-secondary)">Inadequate Existing Aids</h3>
+        <p style="font-size:0.88rem">Conventional fog lights, reflectors, and manual radio calls are insufficient for dense fog environments above 1,000m elevation.</p>
+      </div>
+      <div class="problem-card reveal stagger-5">
+        <div style="font-size:2.2rem;margin-bottom:1rem">📡</div>
+        <h3 style="font-family:var(--font-display);font-size:0.95rem;margin-bottom:0.75rem;color:var(--clr-accent-green)">No Real-time Intelligence</h3>
+        <p style="font-size:0.88rem">Control rooms lack real-time situational awareness — no automated fog monitoring, no instant alerts, no digital fleet view.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Solution Section -->
+<section class="section">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-label">Our Solution</span>
+      <h2 class="section-title">MineSafe Technology Stack</h2>
+      <p class="section-subtitle">An intelligent multi-layer safety platform combining AI, IoT, and V2X communication</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:start">
+      <div>
+        <div class="solution-step reveal">
+          <div class="step-number">1</div>
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:0.9rem;margin-bottom:0.5rem">AI Video Fog Clearing & Dehazing</h3>
+            <p style="font-size:0.85rem">Real-time Dark Channel Prior & computer vision dehazing engine clears heavy fog from video feeds to reveal the clear real view of haul roads, detect obstacles, and classify visibility.</p>
+          </div>
+        </div>
+        <div class="solution-step reveal stagger-1">
+          <div class="step-number">2</div>
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:0.9rem;margin-bottom:0.5rem">Voice Alert Modulation</h3>
+            <p style="font-size:0.85rem">Automatic voice announcements to all operators based on fog severity — from speed advisories to emergency halt commands, adapting tone and urgency.</p>
+          </div>
+        </div>
+        <div class="solution-step reveal stagger-2">
+          <div class="step-number">3</div>
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:0.9rem;margin-bottom:0.5rem">GPS Fleet Tracking & V2V</h3>
+            <p style="font-size:0.85rem">Real-time GPS tracking of all dump trucks with V2V proximity alerts when vehicles come within collision-risk distance during fog.</p>
+          </div>
+        </div>
+        <div class="solution-step reveal stagger-3">
+          <div class="step-number">4</div>
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:0.9rem;margin-bottom:0.5rem">Command & Control Dashboard</h3>
+            <p style="font-size:0.85rem">Centralized real-time monitoring with live fog gauges, fleet status, alerts, charts, and road condition maps for control room operators.</p>
+          </div>
+        </div>
+        <div class="solution-step reveal stagger-4">
+          <div class="step-number">5</div>
+          <div>
+            <h3 style="font-family:var(--font-display);font-size:0.9rem;margin-bottom:0.5rem">Open-Source ML Training</h3>
+            <p style="font-size:0.85rem">YOLOv8 + EfficientNet trained on RESIDE and FRIDA fog datasets with mine-specific augmentation for accurate Bailadila-condition detection.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Cards Right -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div class="feature-card reveal">
+          <div class="feature-icon" style="background:rgba(255,107,26,0.15)">🤖</div>
+          <div class="feature-title">AI Model</div>
+          <p class="feature-desc">Pixel-level fog density analysis. No cloud needed. Runs in browser.</p>
+        </div>
+        <div class="feature-card reveal stagger-1">
+          <div class="feature-icon" style="background:rgba(0,212,255,0.15)">🎬</div>
+          <div class="feature-title">Video Analysis</div>
+          <p class="feature-desc">Upload any foggy road video. Get annotated output + report.</p>
+        </div>
+        <div class="feature-card reveal stagger-2">
+          <div class="feature-icon" style="background:rgba(0,230,118,0.15)">🗣️</div>
+          <div class="feature-title">Voice Alerts</div>
+          <p class="feature-desc">4 severity levels. Auto voice modulation. Web Speech API.</p>
+        </div>
+        <div class="feature-card reveal stagger-3">
+          <div class="feature-icon" style="background:rgba(255,215,64,0.15)">🗺️</div>
+          <div class="feature-title">Radar</div>
+          <p class="feature-desc">Live Leaflet map. 10 dumpers tracked. Collision warnings.</p>
+        </div>
+        <div class="feature-card reveal stagger-4">
+          <div class="feature-icon" style="background:rgba(255,59,59,0.15)">🚨</div>
+          <div class="feature-title">Smart Alerts</div>
+          <p class="feature-desc">Real-time alert log with V2V proximity and road status alerts.</p>
+        </div>
+        <div class="feature-card reveal stagger-5">
+          <div class="feature-icon" style="background:rgba(0,212,255,0.15)">🐍</div>
+          <div class="feature-title">Python Training</div>
+          <p class="feature-desc">Full YOLOv8 + RESIDE dataset training scripts included.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Expected Outcomes -->
+<section class="section" style="background:var(--clr-bg-secondary)">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-label">Expected Outcomes</span>
+      <h2 class="section-title">What MineSafe Delivers</h2>
+    </div>
+    <div class="grid-4">
+      <div class="outcome-card reveal">
+        <div class="outcome-icon">🛡️</div>
+        <div class="outcome-title">ZERO ACCIDENTS</div>
+        <p style="font-size:0.8rem">Eliminate collision risk with AI-guided V2V alerts and real-time speed advisories</p>
+      </div>
+      <div class="outcome-card reveal stagger-1">
+        <div class="outcome-icon">⚡</div>
+        <div class="outcome-title">30% MORE UPTIME</div>
+        <p style="font-size:0.8rem">Reduce operational halts during fog by enabling guided low-speed operations</p>
+      </div>
+      <div class="outcome-card reveal stagger-2">
+        <div class="outcome-icon">📊</div>
+        <div class="outcome-title">REAL-TIME DATA</div>
+        <p style="font-size:0.8rem">Instant fog density, visibility, and fleet status for control room decision-making</p>
+      </div>
+      <div class="outcome-card reveal stagger-3">
+        <div class="outcome-icon">🏭</div>
+        <div class="outcome-title">100 MT TARGET</div>
+        <p style="font-size:0.8rem">Support NMDC's 2030 production goal by minimizing monsoon-related losses</p>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:3rem">
+      <a href="environment.html" class="btn btn-primary" id="outcomesDashBtn" style="font-size:1rem;padding:1rem 2.5rem">
+        🚀 Launch Command Center →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-logo">MineSafe</div>
+  <p class="footer-text">AI Mine Safety Intelligence · Bailadila Iron Ore Mines · Chhattisgarh, India<br/>
+  Built for NMDC's 100 MTPA Vision 2030 | Powered by Open-Source AI</p>
+</footer>
+
+<script src="js/app.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/voice-assistant.js"></script>
+<script>
+  // Particle Generator
+  const pb = document.getElementById('particlesBg');
+  if (pb) {
+    for (let i = 0; i < 30; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size = 2 + Math.random() * 6;
+      const isOrange = Math.random() > 0.6;
+      p.style.cssText = `
+        width:${size}px;height:${size}px;
+        left:${Math.random()*100}%;
+        background:${isOrange ? 'rgba(255,107,26,0.6)' : 'rgba(0,212,255,0.4)'};
+        animation-duration:${6 + Math.random()*8}s;
+        animation-delay:${Math.random()*5}s;
+      `;
+      pb.appendChild(p);
+    }
+  }
+
+  // Fog clouds
+  const fl = document.getElementById('fogLayer');
+  if (fl) {
+    for (let i = 0; i < 5; i++) {
+      const c = document.createElement('div');
+      c.className = 'fog-cloud';
+      const size = 300 + Math.random() * 400;
+      c.style.cssText = `
+        width:${size}px;height:${size*0.4}px;
+        top:${20 + Math.random()*60}%;
+        animation-duration:${20 + Math.random()*20}s;
+        animation-delay:${Math.random()*10}s;
+      `;
+      fl.appendChild(c);
+    }
+  }
+
+  // Scroll reveal
+  document.addEventListener('DOMContentLoaded', () => App.initScrollReveal());
+
+  const heroScene = document.getElementById('heroScene');
+  if (heroScene && window.matchMedia('(pointer: fine)').matches) {
+    heroScene.addEventListener('pointermove', event => {
+      const bounds = heroScene.getBoundingClientRect();
+      const x = ((event.clientX - bounds.left) / bounds.width - 0.5) * 10;
+      const y = ((event.clientY - bounds.top) / bounds.height - 0.5) * 10;
+      heroScene.style.setProperty('--scene-x', `${x}px`);
+      heroScene.style.setProperty('--scene-y', `${y}px`);
+    });
+    heroScene.addEventListener('pointerleave', () => {
+      heroScene.style.setProperty('--scene-x', '0px');
+      heroScene.style.setProperty('--scene-y', '0px');
+    });
+  }
+</script>
+</body>
+</html>
+
+The above content shows the entire, complete file contents of the requested file.
